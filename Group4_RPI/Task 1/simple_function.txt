@@ -1,0 +1,74 @@
+from time import sleep
+def simple_function(obstacle_id):
+    command = ''
+    return command
+
+def robot_position():
+    position = list()
+    return position
+
+def convert_id(string):
+    string = string.replace("[",'')
+    string = string.replace("]",'')
+    string = string.replace(" ",'')
+    string = string.replace("\'",'')
+    command_list = list(string.split(","))  
+    return command_list
+
+def take_pic(camera,x):
+    camera.rotation =180
+    camera.capture("/home/MDPGroup26/shared/inputs/img" + str(x) + ".jpg")
+    print("done")
+
+def convert_command(string):
+    string = string.replace("[",'')
+    string = string.replace("]",'')
+    string = string.replace(" ",'')
+    string = string.replace("\'",'')
+    command_list = list(string.split(","))  
+    return command_list
+
+def convert_position(ob_str):
+    ob_str = ob_str.replace("[",'')
+    ob_str = ob_str.replace("]",'')
+    ob_str = ob_str.replace("(",'')
+    ob_str = ob_str.replace(")",'')
+    ob_str = ob_str.replace("\'",'')
+    ob_str = ob_str.replace(" ",'')
+    ob_str = ob_str.split(",")
+
+    ob_number = int(len(ob_str) / 3)
+
+    ob_list = []
+    for i in range(ob_number):
+        ob_x = float(ob_str[i * 3])
+        ob_y = float(ob_str[i * 3 + 1])
+        ob_orientation = ob_str[i * 3 + 2]
+        ob_info = [ob_x,ob_y,ob_orientation]
+        ob_list.append(ob_info)
+    return ob_list
+
+def convert(str):
+    ob_str = str.replace("[",'')
+    ob_str = ob_str.replace("]",'')
+    ob_str = ob_str.replace("(",'')
+    ob_str = ob_str.replace(")",'')
+    ob_str = ob_str.replace("\'",'')
+    ob_str = ob_str.replace(" ",'')
+    ob_str = ob_str.split(",")
+
+    ob_number = int(len(ob_str)/3)
+    ob_list = []
+    for i in range(ob_number):
+        ob_x = float(ob_str[i*3])
+        ob_y = float(ob_str[i*3+1])
+        ob_orientation = ob_str[i*3+2]
+        ob_info = [ob_x,ob_y,ob_orientation]
+        ob_list.append(ob_info)
+    return ob_list
+
+def return_smth():
+    obstacle_id = '[0, 1, 6, 2, 4, 5, 3]'
+    stop_point = "[(1.0, 1.0, 1.5707963267948966), (4.75, 8.5, 3.141592653589793), (7.5, 14.25, 1.5707963267948966), (16.25, 18.5, 0.0), (16.5, 4.75, 4.71238898038469), (5.5, 16.75, 4.71238898038469), (8.25, 6.5, 0.0)]"
+    command ="['d038', 'a083', 'e045', 'z000', 'q025', 's020', 'q050', 'd053', 'q051', 'z000', 'e028', 'a090', 'w000', 'd028', 'z000', 'e075', 'q027', 'e077', 'a055', 'z000', 'e075', 's020', 'q050', 'e024', 'q047', 'd002', 'z000', 'e025', 'a090', 'w035', 'd025', 'z000']"
+    return obstacle_id, stop_point, command

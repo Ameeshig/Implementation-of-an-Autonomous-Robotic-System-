@@ -1,0 +1,44 @@
+#watchdog module
+#need edit on it more
+
+import time
+from watchdog.observers import Observer
+from watchdog.events import PatternMatchingEventHandler
+'''
+if __name__ == "__main__":
+    patterns = ["*"]
+    ignore_patterns = None
+    ignore_directories = False
+    case_sensitive = True
+my_event_handler = PatternMatchingEventHandler(patterns, ignore_patterns, ignore_directories, case_sensitive)
+'''
+img_id = " "
+count=0
+def on_created(event):
+    print(f"hey, {event.src_path} has been created!")
+    
+			# Event is modified, you can process it now
+            # f = open('example.txt')
+    global img_id 
+    global out_count
+    f = open("Output {}.txt".format(out_count))
+    img_id = f.readlines()
+    f.close()
+    out_count+=1
+    return
+'''
+my_event_handler.on_created = on_created
+
+path = "/home/MDPGoup26/shared/outputs"
+go_recursively = True
+my_observer = Observer()
+my_observer.schedule(my_event_handler, path, recursive=go_recursively)
+
+my_observer.start()
+try:
+    while True:
+        time.sleep(0.5)
+except KeyboardInterrupt:
+    my_observer.stop()
+    my_observer.join()
+'''

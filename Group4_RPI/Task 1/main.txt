@@ -1,0 +1,148 @@
+
+# 1. connect bluetooth
+# 2. press start on android, android output string 
+# 3. android output obstacle id
+# 4. obstacle id get passed to algo
+# 5. algo outputs command
+# 6. command gets send to stm for stm to execute
+# 7. when command is 'z000', send command to take pic using rpi cam, receive robot position from algo
+# send robot position to android
+# 8. read file from samba server whenever its auto updated
+# 9. send the image id to android 
+
+# 1. connect bluetooth
+from bluetooth import *
+import socket, serial
+from simple_function import *
+from image_rec import *
+from time import sleep
+
+
+#camera part
+from picamera import PiCamera
+from time import sleep
+camera = PiCamera()
+
+#bluetooth connection 
+bt_Socket = BluetoothSocket(RFCOMM)
+bt_Socket.bind(("",PORT_ANY))
+bt_Socket.listen(1)
+port = bt_Socket.getsockname()[1]
+uuid = "ce33832c-09a0-4123-b350-6b03e048fb90"
+
+print("Waiting for connection on RFCOMM channel %d" % port)
+bt_client_sock, bt_client_info = bt_Socket.accept()
+print("Accepted connection from ", bt_client_info, uuid)
+
+#creating socket for server and client
+sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR,1)
+# Connect the socket to the port where the server is listening
+server_address = ('192.168.4.1', 1234)
+print('connecting to {} port {}'.format(*server_address))
+sock.bind(server_address)
+# accept client connection
+sock.listen(1)
+(pc_client, addr) = sock.accept()  
+print ("connection established from", addr)
+
+# 1.2. connect stm
+ser = serial.Serial(
+        port='/dev/ttyUSB0',
+        baudrate = 115200,
+        parity = serial.PARITY_NONE,
+        stopbits = serial.STOPBITS_ONE,
+        bytesize = serial.EIGHTBITS,
+        timeout=100,
+        dsrdtr=False
+    )
+
+# 2. press start on android, android output string 
+#temp = bt_client_sock.recv(1024)
+#from_bt = temp.decode('ascii').replace('\r\n', '') # output stored in from_bt
+
+# 3. android output obstacle id
+temp1 = bt_client_sock.recv(1024)
+# obstacle id sample = [(5, 15, 'N'), (10, 13, 'W'),(15, 15, 'N'),(13, 5, 'E')]
+obstacle_id = temp1.decode('ascii').replace('\r\n', '')
+print(obstacle_id)
+#send to algo
+pc_client.sendall(obstacle_id.encode())
+
+# 4. obstacle id get passed to algo, command is output
+# 5. algo outputs command, rpi receives the information through the socket
+
+stops =0
+com_no =0
+ob_no=convert_id(pc_client.recv(1024).decode()) #in list now
+pc_client.sendall(obstacle_id.encode())
+ob_no.pop(stops) # pop the original 
+stop_pt= convert(pc_client.recv(1024).decode())
+pc_client.sendall(obstacle_id.encode())
+
+stop_pt.pop(stops) #need convert to list first, and pop the first stop point
+command = convert_command(pc_client.recv(1024).decode())
+
+
+
+# 6. command gets send to stm for stm to execute
+# transforming the string into list but if algo can output directly into list then dn this step
+
+first_instruction = str(command[com_no])
+print(first_instruction)
+    # since the list item are decoded, need to encode it back before sending to stm
+ser.write(first_instruction.encode())
+command.pop(com_no)
+image_no = 1
+
+
+msg =''
+# 7. when command is 'z000', send command to take pic using rpi cam, receive robot position from algo
+# send robot position to android
+while (com_no < len(command) ):
+    char = ser.read()# 1 byte
+    msg = msg + char.decode('utf-8') 
+    print(msg)
+    if char == b'S':
+        instruction = str(command[com_no])
+        print(instruction)
+        ser.write(instruction.encode())
+        # ask pi camera to take pic
+        if (instruction == 'z000'):
+            take_pic(camera,image_no)
+            sleep(3)
+            
+            # sending of robot position and orientation to android
+            position_coord = str(stop_pt[stops])
+            obsta_id = str(ob_no[stops])
+            update = "UPDATE-" + position_coord
+            print("update:" + update)
+            bt_client_sock.send(update.encode())
+            try:
+                f = open("../../shared/outputs/Output {}.txt".format(image_no))
+                id_raw = f.readlines()
+                img_id = id_raw[0]
+                f.close()
+            except FileNotFoundError as f:
+                img_id = ' '
+            # 9. send the image id to android (obstacle id, image id)
+            #img_id = my_event_handler.on_created
+            print("img id:" + str(img_id))
+            to_send_android = 'IMG-' + obsta_id + '-'+ str(img_id)
+            print("send android: " + to_send_android)
+            bt_client_sock.send(to_send_android.encode())
+            image_no+=1
+            stops+=1 # pop first obstacle id
+         # pop first element after passing to android if every position corresponds to z000
+        com_no+=1
+
+sleep(0.5)
+bt_client_sock.send("ENDED")
+#stop the watchdog polling
+#disconnecting bluetooth
+print("bluetooth disconnecting")
+#bt_client_sock.close()
+#bt_Socket.close()
+print("bluetooth disconnected")
+# 8. read file from samba server whenever its auto updated 99 = no detection
+#my_event_handler.on_created = on_created

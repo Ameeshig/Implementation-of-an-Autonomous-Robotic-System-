@@ -1,0 +1,408 @@
+from logging.config import stopListening
+from mapinfo import MapInfo
+import math
+from math import pi
+from copy import deepcopy
+from reeds_shepp_path import ReedsSheppPath, draw_point
+from hybrid_a_star import HybridAStar
+from car import Car
+from a_star import AStar
+import matplotlib.pyplot as plt
+import time
+from scipy import spatial
+import numpy as np
+
+import socket
+import sys
+
+def Dijkstra(G,v0,INF=999): 
+    book = []
+    minv = v0   
+    dis = dict((k,INF) for k in G.keys())
+    dis[v0] = 0 
+    while len(book)<len(G):
+        book.append(minv)                               
+        for w in G[minv]:                               
+            if dis[minv] + G[minv][w] < dis[w]:               
+                dis[w] = dis[minv] + G[minv][w]         
+        new =INF                                        
+        for v in dis.keys():
+            if v in set(book): continue
+            if dis[v] < new: 
+                new = dis[v]
+                minv = v
+    return book,dis
+
+def path_to_command(path):
+    orientation = path[0]
+    number = path[1]
+
+    if orientation == 's':
+        if number >= 0:
+            command_orientation = 'w' # straight forward
+            number = round(number * 10)
+            digit_2 = int(number // 100)
+            digit_1 = int((number - 100 * digit_2) // 10)
+            digit_0 = int((number - 100 * digit_2 - 10 * digit_1) // 1)
+        else:
+            command_orientation = 's' # straight backward
+            number = round(number * (-1) * 10)
+            digit_2 = int(number // 100)
+            digit_1 = int((number - 100 * digit_2) // 10)
+            digit_0 = int((number - 100 * digit_2 - 10 * digit_1) // 1)
+    elif orientation == 'l':
+        if number >= 0:
+            command_orientation = 'a' # left turn forward
+            number = round(number * 180 / pi)
+            digit_2 = int(number // 100)
+            digit_1 = int((number - 100 * digit_2) // 10)
+            digit_0 = int((number - 100 * digit_2 - 10 * digit_1) // 1)
+        else: 
+            command_orientation = 'q' # left turn backward
+            number = round(number * (-1) * 180 / pi)
+            digit_2 = int(number // 100)
+            digit_1 = int((number - 100 * digit_2) // 10)
+            digit_0 = int((number - 100 * digit_2 - 10 * digit_1) // 1)
+    else: #orientation == 'r'
+        if number >= 0:
+            command_orientation = 'd' # right turn forward
+            number = round(number * 180 / pi)
+            digit_2 = int(number // 100)
+            digit_1 = int((number - 100 * digit_2) // 10)
+            digit_0 = int((number - 100 * digit_2 - 10 * digit_1) // 1)
+        else:
+            command_orientation = 'e' # right turn backward
+            number = round(number * (-1) * 180 / pi)
+            digit_2 = int(number // 100)
+            digit_1 = int((number - 100 * digit_2) // 10)
+            digit_0 = int((number - 100 * digit_2 - 10 * digit_1) // 1)
+
+    command = command_orientation + str(digit_2) + str(digit_1) + str(digit_0)
+    return command
+
+def get_ob_str(obstacle_string):
+    ob_str = obstacle_string
+
+    ob_str = ob_str.replace("[",'')
+    ob_str = ob_str.replace("]",'')
+    ob_str = ob_str.replace("(",'')
+    ob_str = ob_str.replace(")",'')
+    ob_str = ob_str.replace("\'",'')
+    ob_str = ob_str.replace(" ",'')
+    ob_str = ob_str.split(",")
+
+    ob_number = int(len(ob_str) / 3)
+
+    #print("\n======== NUMBER OF OBSTABLE ========") #### var 1: ob number
+    #print(ob_number)
+
+    ob_list = []
+    for i in range(ob_number):
+        ob_x = int(ob_str[i * 3])
+        ob_y = int(ob_str[i * 3 + 1])
+        ob_orientation = ob_str[i * 3 + 2]
+        ob_info = [ob_x,ob_y,ob_orientation]
+        ob_list.append(ob_info)
+
+    #print("\n======== OBSTACLE LIST ========")  #### var 2: ob list
+    #print(ob_list)
+
+    ob = []
+    for i in range(len(ob_list)):
+        ob_current_x = ob_list[i][0]
+        ob_current_y = ob_list[i][1]
+        ob.append([ob_current_x,ob_current_y])
+        ob.append([ob_current_x + 1,ob_current_y])
+        ob.append([ob_current_x,ob_current_y + 1])
+        ob.append([ob_current_x + 1,ob_current_y + 1]) 
+    ### var 3: ob (for m.obstacle)
+
+    return ob_number, ob_list, ob
+
+def get_sequenced_stop_point(ob_list):
+    stop_point = []
+    stop_point.append(start)
+
+    for i in range(len(ob_list)):
+        ob_to_process = ob_list[i]
+        center_x = ob_to_process[0]
+        center_y = ob_to_process[1]
+        orientation = ob_to_process[2]
+    
+        if center_x == 1:
+            center_x += 1
+        if center_x == 19:
+            center_x -= 1
+        if center_y == 1:
+            center_y += 1
+        if center_y == 19:
+            center_y -= 1
+    
+        if orientation == 'S':
+            stop_point.append((center_x - 0.25, center_y - image_distance - 1, 180 / 180 * pi))
+        elif orientation == 'E':
+            stop_point.append((center_x + 1 + image_distance + 1, center_y - 0.25, 270 / 180 * pi))
+        elif orientation == 'W':
+            stop_point.append((center_x - image_distance - 1, center_y + 1.25, 90 / 180 * pi))
+        elif orientation == 'N':
+            stop_point.append((center_x + 1.25, center_y + 1 + image_distance + 1, 0 / 180 * pi))
+        else:
+            print("Wrong obstacle string...")
+
+    stop_point_original_sequence = stop_point
+    #print("\n======== STOP POINTS ========") #### var 1
+    #print(stop_point_original_sequence)
+
+    stop_point.append(end)
+
+    # use Dijkstra to improve the sequence of the stop points 
+    G = {}
+    for i in range(len(stop_point) - 1):
+        g = {}
+        for j in range(len(stop_point) - 1):   
+            first = np.asarray(stop_point[i])
+            #print(first)
+            second = np.asarray(stop_point[j])
+            #print(second)
+            distance = spatial.distance.euclidean(first,second)
+            g[j] = distance
+        G[i] = g
+    #print(G)
+
+    book,dis = Dijkstra(G,v0=0)
+
+    #print("\n======== SEQUENCE OF PASSING POINTS (INDEX) ========") ### var 2
+    #print(book)
+    
+    #book = [0, 1, 2, 3, 4]                          # backdoor: if want to mannually change the sequence of passing obstacles for testing, can edit here.
+
+    shortest_sequence = []
+    for i in range(len(book)):
+        index = book[i]
+        shortest_sequence.append(stop_point[index])
+
+    stop_point = shortest_sequence
+    #print("\n======== SEQUENCE OF PASSING POINTS (X,Y) ========") ### var 3
+    #print(stop_point)
+
+    return stop_point_original_sequence, book, stop_point
+
+if __name__ == "__main__":
+    
+    # Create a TCP/IP socket
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
+    # Connect the socket to the port where the server is listening
+    host = socket.gethostname()
+    print(socket.gethostname())
+    server_address = ('192.168.4.1', 1234)  # ('localhost', 10000)
+    print('connecting to {} port {}'.format(*server_address))
+    sock.connect(server_address)
+    
+    m = MapInfo(20, 20)                                             # Size of the map (in dm)
+    car = Car(2.0, 1.5)                                             # Size of the car (length, width, in dm)
+    start = (1.0, 1.0, 90 / 180 * pi)                               # Start point (x,y,orientation)
+    end = (18, 19, 0)  
+    
+    ########################                                            # End point, no need to change
+    image_distance = 1.5                                                # distance in front of the obstacle when taking photo (in dm)
+    ########################
+    
+    r = 4.55            
+    m.show()
+    m.start = start
+    m.end = end
+
+    print("\n======== CAMERA ORIENTATION ========")
+    print('right')
+
+    print("\n======== IMAGE TAKING DISTANCE ========")
+    print(image_distance * 10,'cm')
+
+    print("\n======== TURNING RADIUS ========")
+    print(r * 10,'cm')
+    
+    #ob_str = "[19,19,W], [15,15,N],[7,0,N],[2,18,S], [9,12,W], [12,5,E], [4,8,E], [18,10,N]"
+    
+    
+    ########################
+    
+    ob_str = sock.recv(1024).decode()
+    ########################
+    
+    
+    ob_number, ob_list, ob = get_ob_str(ob_str)
+    
+    #print(ob)
+    #print(type(ob))
+    
+    ob = np.array(ob)
+    #print(ob)
+    #print(type(ob))
+    #print(ob.shape)
+
+    m.obstacle = ob 
+
+    print("\n======== NUMBER OF OBSTABLE ========") #### var 1: ob number
+    print(ob_number)
+    print("\n======== OBSTACLE LIST ORIGINAL SEQUENCE ========")  #### var 2: ob list
+    print(ob_list)
+
+    stop_point_original_sequence, book, stop_point = get_sequenced_stop_point(ob_list)
+    
+    print("\n======== STOP POINTS ORIGINAL SEQUENCE ========") #### var 1
+    print(stop_point_original_sequence)
+
+    ########################################################
+    ##### RETURN TO RPI (passing order of the ob index) ####
+    ##### MATCHING IMAGE RESULT TO OB ID ###################
+    ########################################################
+    print("\n======== SEQUENCE OF PASSING POINTS (INDEX) ========") ### var 2
+    print(book)
+
+    ########################################################
+    ###### RETURN TO RPI (x,y of the stop point) ###########
+    ####### UPDATE ANDROID THE LOCATION#####################
+    ########################################################
+    print("\n======== SEQUENCE OF PASSING POINTS (X,Y) ========") ### var 3
+    print(stop_point)
+
+    car.set_position(m.start)
+    car.show()
+    m.update()
+
+    xs = {}
+    ys = {}
+    yaws = {}
+    paths = {}
+
+    print("\n======== PATH PROGRESS ========") ### var 3
+
+    for i in range(len(stop_point) - 1):
+        plan = HybridAStar(stop_point[i], stop_point[i + 1], m, car, r)
+        if plan.run(True):
+            xs[i], ys[i], yaws[i], paths[i] = plan.reconstruct_path()
+            m.path = list(zip(xs[i], ys[i]))
+            m.update()
+        print(i,'->', i + 1)
+
+    xs_all = []
+    ys_all = []
+    yaws_all = []
+
+    for i in range(len(xs)):
+        xs_clip = xs[i]
+        for j in range(len(xs_clip)):
+            xs_all.append(xs_clip[j])
+        
+    
+    for i in range(len(ys)):
+        ys_clip = ys[i]
+        for j in range(len(ys_clip)):
+            ys_all.append(ys_clip[j])
+    
+    for i in range(len(yaws)):
+        yaws_clip = yaws[i]
+        for j in range(len(yaws_clip)):
+            yaws_all.append(yaws_clip[j])
+    
+    #print("\n======== RAW PATH COMMAND ========")
+    #print(paths)
+
+    # reformat the paths string -> command
+    command = []
+    for i in range(len(paths)):
+        current_path = paths[i]          
+        for j in range(len(current_path)):
+            if isinstance(current_path[j][1], int) or isinstance(current_path[j][1], float):
+                current_command = path_to_command(current_path[j])
+                command.append(current_command)
+            else:
+                for k in range(len(current_path[j])):
+                    current_command = path_to_command(current_path[j][k])
+                    command.append(current_command)
+        command.append('z000')
+    
+    #print("\n======== COMMAND ========")
+    #print(command)
+
+    # incoporate/merge same commend
+    merged_command = []
+    merged_command_counter = 0
+
+    for i in range(len(command)):
+        currend_command = command[i]
+        currend_command_type = currend_command[0]
+        if i == 0:
+            merged_command.append(currend_command)
+            merged_command_counter += 1
+        else:
+            previous_command = merged_command[merged_command_counter - 1]
+            previous_command_type = previous_command[0]
+            if currend_command_type == previous_command_type:
+                previous_command_number = 100 * int(previous_command[1]) + 10 * int(previous_command[2]) + int(previous_command[3])
+                currend_command_number = 100 * int(currend_command[1]) + 10 * int(currend_command[2]) + int(currend_command[3])
+                new_command_type = currend_command_type
+                new_command_number = previous_command_number + currend_command_number
+                digit_2 = int(new_command_number // 100)
+                digit_1 = int((new_command_number - 100 * digit_2) // 10)
+                digit_0 = int((new_command_number - 100 * digit_2 - 10 * digit_1) // 1)
+                new_command = new_command_type + str(digit_2) + str(digit_1) + str(digit_0)
+                merged_command.pop()
+                merged_command.append(new_command) 
+            else:
+                merged_command.append(currend_command)
+                merged_command_counter += 1
+    
+    ########################################################
+    ############# RETURN TO RPI (command) ##################
+    ########### SEND TO STM FOR EXECUTION ##################
+    ########################################################
+    print("\n======== MERGED COMMAND ========")
+    print(merged_command)
+    
+    position = []
+    for i in range(len(xs_all)):
+        if i % 40 == 0:                                         # Sample rate for position (for android). if want more points, just change 10 to 5/2/1.
+            position.append([round(xs_all[i], ndigits=3), round(ys_all[i], ndigits=3)])
+
+    print("\n======== POSITION ========")
+    print(position)
+
+    #print("\n======== POSITION DATA POINT NUMBER ========")
+    #print(len(position))
+    
+    
+    ########################################################
+    book_str = str(book)
+    sock.send(book_str.encode())
+    str_rpi = sock.recv(1024).decode()
+    
+    stop_point_str = str(stop_point)
+    sock.send(stop_point_str.encode())
+    str_rpi = sock.recv(1024).decode()
+
+    merged_command_str = str(merged_command)
+    sock.send(merged_command_str.encode())
+    ########################################################
+    
+    
+    # show the path
+    for i in range(len(xs_all)):
+        if i != len(xs_all) - 1 and i % 10 != 0:
+            continue
+        plt.cla()
+        m.show()
+        m.start = stop_point[0]
+        m.end = stop_point[-1]
+        m.obstacle = ob
+        number_ob = len(stop_point) - 2
+        m.stop_point = stop_point[1:number_ob + 1]
+        m.path = list(zip(xs_all, ys_all))
+        
+        car.set_position([xs_all[i], ys_all[i], yaws_all[i]])
+        car.show()
+        plt.pause(0.001)
+    m.wait_close()
+
+    

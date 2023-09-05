@@ -1,0 +1,73 @@
+from time import sleep
+def simple_function(obstacle_id):
+    command = ''
+    return command
+
+def decide_RL(img_id, x):
+    #x is the counter
+    message =''
+    if img_id == '0' and x==1:
+        message = 'd000' #right
+    elif img_id == '0' :
+        message = 'e000' #sec right
+    elif img_id == '1' and x ==1:
+        message = 'a000' #left
+    elif img_id == '1' :
+        message = 'q000'
+    return message
+
+def hardcode_rl(x):
+    message =''
+    if x==1:
+        message = 'd000' #right
+    elif x ==3 :
+        message = 'e000' #sec right
+    return message
+
+def robot_position():
+    position = list()
+    return position
+
+def take_pic(camera,x):
+    camera.rotation =180
+    camera.capture("/home/MDPGroup26/shared/inputs/img" + str(x) + ".jpg")
+    print("done" + str(x))
+
+def read_text(x):
+    try:
+        f = open("../shared/outputs/Output {}.txt".format(x))
+        id_raw = f.readlines()
+        img_id = id_raw[0]
+        f.close()
+    except FileNotFoundError as f:
+        img_id = 'no detections'
+    print("image "+str(x)+" id: " + img_id)
+    return img_id
+
+def convert_command(string):
+    string = string.replace("[",'')
+    string = string.replace("]",'')
+    string = string.replace(" ",'')
+    string = string.replace("\'",'')
+    command_list = list(string.split(","))  
+    return command_list
+
+def convert_position(ob_str):
+    ob_str = ob_str.replace("[",'')
+    ob_str = ob_str.replace("]",'')
+    ob_str = ob_str.replace("(",'')
+    ob_str = ob_str.replace(")",'')
+    ob_str = ob_str.replace("\'",'')
+    ob_str = ob_str.replace(" ",'')
+    ob_str = ob_str.split(",")
+
+    ob_number = int(len(ob_str) / 3)
+
+    ob_list = []
+    for i in range(ob_number):
+        ob_x = float(ob_str[i * 3])
+        ob_y = float(ob_str[i * 3 + 1])
+        ob_orientation = ob_str[i * 3 + 2]
+        ob_info = [ob_x,ob_y,ob_orientation]
+        ob_list.append(ob_info)
+    return ob_list
